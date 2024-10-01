@@ -1,18 +1,92 @@
-# Build and Release Folders
-bin-debug/
-bin-release/
-[Oo]bj/
-[Bb]in/
+import cv2
+import numpy as np
+import os
+from glob import glob
 
-# Other files and folders
-.settings/
+def apply_clahe(image):
+    # Convert image to grayscale if needed
+    if len(image.shape) == 3:
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-# Executables
-*.swf
-*.air
-*.ipa
-*.apk
+    # Apply CLAHE
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    return clahe.apply(image)
 
-# Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
-# should NOT be excluded as they contain compiler settings and other important
-# information for Eclipse / Flash Builder.
+# Example to apply CLAHE to an image
+image_path = 'path_to_your_mri_image.jpg'
+image = cv2.imread(image_path)
+clahe_image = apply_clahe(image)
+
+# Save or visualize the result
+cv2.imwrite('clahe_image.jpg', clahe_image)
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+def normalize_image(image):
+    return image / 255.0
+
+# Example augmentation setup using Keras
+datagen = ImageDataGenerator(
+    rotation_range=20,
+    width_shift_range=0.1,
+    height_shift_range=0.1,
+    shear_range=0.1,
+    zoom_range=0.1,
+    horizontal_flip=True,
+    fill_mode='nearest'
+)
+
+# Apply to images in batches
+# datagen.flow will be used during model training
+from keras.models import Model
+from keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, concatenate
+
+def unet_plus_plus(input_size=(256, 256, 1)):
+    inputs = Input(input_size)
+
+    conv1 = Conv2D(64, 3, activation='relu', padding='same')(inputs)
+    pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
+
+    conv2 = Conv2D(128, 3, activation='relu', padding='same')(pool1)
+    pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
+
+    # Continue with more U-Net structure layers here...
+    # Adding more layers for a deeper model (Nested U-Net)
+
+    up1 = UpSampling2D(size=(2, 2))(conv2)
+    merge1 = concatenate([conv1, up1], axis=3)
+    conv3 = Conv2D(64, 3, activation='relu', padding='same')(merge1)
+
+    model = Model(inputs, conv3)
+    return model
+
+model_unet_plus = unet_plus_plus()
+model_unet_plus.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+def attention_unet(input_size=(256, 256, 1)):
+    inputs = Input(input_size)
+
+    conv1 = Conv2D(64, 3, activation='relu', padding='same')(inputs)
+    pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
+
+    conv2 = Conv2D(128, 3, activation='relu', padding='same')(pool1)
+    pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
+
+    # Attention mechanism layers would be applied here...
+    
+    up1 = UpSampling2D(size=(2, 2))(conv2)
+    merge1 = concatenate([conv1, up1], axis=3)
+    conv3 = Conv2D(64, 3, activation='relu', padding='same')(merge1)
+
+    model = Model(inputs, conv3)
+    return model
+
+model_attention_unet = attention_unet()
+model_attention_unet.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+from sklearn.metrics import f1_score
+
+# Define custom metric DICE score (which is equivalent to F1-score for binary tasks)
+def dice_coefficient(y_true, y_pred):
+    intersection = np.sum(np.abs(y_true * y_pred))
+    return (2. * intersection) / (np.sum(np.abs(y_true) + np.abs(y_pred)) + 1e-6)
+
+# Example training
+history = model_unet_plus.fit(train_data, train_labels, validation_data=(val_data, val_labels), epochs=50, batch_size=32)
