@@ -90,3 +90,46 @@ def dice_coefficient(y_true, y_pred):
 
 # Example training
 history = model_unet_plus.fit(train_data, train_labels, validation_data=(val_data, val_labels), epochs=50, batch_size=32)
+#Web Application Development
+pip install fastapi uvicorn
+from fastapi import FastAPI, UploadFile, File
+import uvicorn
+import numpy as np
+from keras.models import load_model
+from PIL import Image
+
+app = FastAPI()
+
+# Load the trained model
+model = load_model('best_model.h5')
+
+@app.post("/predict/")
+async def predict(file: UploadFile = File(...)):
+    img = Image.open(file.file).convert('L')
+    img = img.resize((256, 256))
+    img = np.array(img) / 255.0
+    img = np.expand_dims(img, axis=0)
+    
+    pred = model.predict(img)
+    return {"prediction": pred.tolist()}
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+pip install streamlit
+import streamlit as st
+import requests
+from PIL import Image
+
+st.title('Brain MRI Metastasis Segmentation')
+
+uploaded_file = st.file_uploader("Upload a Brain MRI image", type="jpg")
+
+if uploaded_file is not None:
+    image = Image.open(uploaded_file)
+    st.image(image, caption='Uploaded MRI.', use_column_width=True)
+
+    # Send image to FastAPI for segmentation
+    if st.button('Predict'):
+        files = {'file': uploaded_file.getvalue()}
+        response = requests.post("http://localhost:8000/predict/", files=files)
+        st.write(response.json())
